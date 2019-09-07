@@ -1,6 +1,10 @@
 module Requested exposing
     ( Requested(..)
     , fromTracker, fromSuccess, fromFailure
+    , isOutstanding
+    , withResponse
+    , refresh
+    , fromResult
     )
 
 {-| The Requested type and associated functions.
