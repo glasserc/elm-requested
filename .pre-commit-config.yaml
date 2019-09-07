@@ -1,0 +1,8 @@
+- repo: local
+  hooks:
+    - id: elm-format
+      name: Run elm-format
+      language: system
+      entry: elm-format
+      files: \.elm$
+      args: ['--yes']
