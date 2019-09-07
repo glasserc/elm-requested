@@ -20,6 +20,7 @@ import Debug
 import Html exposing (Html, a, div, h1, input, label, li, span, text, ul)
 import Html.Attributes as Attributes
 import Html.Events as Events
+import Random
 import Requested exposing (Requested(..))
 
 
@@ -85,6 +86,12 @@ type Error
     | NoSuchCategory String
 
 
+{-| Get an Int from JS to seed the random request delays.
+-}
+type alias Flags =
+    Int
+
+
 errToString : Error -> String
 errToString err =
     case err of
@@ -104,6 +111,9 @@ type alias Model =
 
     -- The count of requests we've made. We use this in the tracker.
     , requestCount : Int
+
+    -- A random seed that we use to randomize how long requests will take.
+    , seed : Random.Seed
     }
 
 
@@ -112,7 +122,7 @@ type Msg
     | GotCategory Tracker CategoryName (Result Error Mailbox)
 
 
-main : Program () Model Msg
+main : Program Flags Model Msg
 main =
     Browser.element
         { init = initial
@@ -122,8 +132,8 @@ main =
         }
 
 
-initial : flags -> ( Model, Cmd Msg )
-initial _ =
+initial : Flags -> ( Model, Cmd Msg )
+initial seed =
     let
         initialCategory =
             "news"
@@ -134,6 +144,7 @@ initial _ =
     ( { mailbox = Requested.fromTracker tracker
       , selectedCategory = initialCategory
       , requestCount = 0
+      , seed = Random.initialSeed seed
       }
     , Cmd.none
     )

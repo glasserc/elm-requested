@@ -1,1 +1,3 @@
-To run this example, just do `elm-live src/Main.elm`.
+To run this example, use this command:
+
+`elm-live src/Main.elm --start-page=custom.html -- --debug --output=elm.js`
