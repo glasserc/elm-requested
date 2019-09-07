@@ -58,8 +58,40 @@ type alias Tracker =
     ( Int, CategoryName )
 
 
-type alias Error =
-    String
+{-| The type of the "errors" we could get when trying to make a
+request.
+
+We don't want this example to bog down in the discussion of networks
+and their failures, so we'll just assume they can fail with String
+errors. To keep the Error type from being another alias for String,
+we'll also add the possibility of a "no such category" error
+response.
+
+What you consider an error and what you consider a successful error
+result are completely up to you! In particular, it might make more
+sense for NoSuchCategory to be part of a succeeded result, depending
+on your types or UX. In this example, we can tell that the category
+doesn't even exist before we even "execute" the request, so we could
+even decide not to transition to Outstanding, in which case it makes
+no sense for this to be part of the error type. However, let's assume
+that this mail client is looking a shared mailbox that could be
+updated externally, in which case the category might disappear under
+our noses.
+
+-}
+type Error
+    = HttpError String
+    | NoSuchCategory String
+
+
+errToString : Error -> String
+errToString err =
+    case err of
+        HttpError s ->
+            "network failure (" ++ s ++ ")"
+
+        NoSuchCategory name ->
+            "the category " ++ name ++ " does not exist"
 
 
 type alias Model =
@@ -156,7 +188,7 @@ displayRequested r =
             Html.div []
                 [ Html.text "Failed"
                 , Html.ul []
-                    [ Html.li [] [ Html.text "Error: ", Html.em [] [ Html.text err ] ]
+                    [ Html.li [] [ Html.text "Error: ", Html.em [] [ Html.text <| Debug.toString err ] ]
                     , Html.li []
                         [ case lastSuccess of
                             Nothing ->
@@ -179,7 +211,7 @@ displayRequested r =
                                 Html.text "No previous error"
 
                             Just err ->
-                                Html.text <| "Was error: " ++ err
+                                Html.text <| "Was error: " ++ Debug.toString err
                         ]
                     , Html.li []
                         [ case lastSuccess of
@@ -205,7 +237,7 @@ displayStatus r =
                     "Loading..."
 
                 Failed err _ ->
-                    "Couldn't load mailbox because: " ++ err
+                    "Couldn't load mailbox because: " ++ errToString err
 
                 Outstanding _ (Just err) _ ->
                     "Trying again..."
@@ -270,7 +302,8 @@ mailboxDisplay model =
         displayErr err =
             Html.p []
                 [ Html.text "There was an error fetching this mail: "
-                , Html.em [] [ Html.text err ]
+                , Html.em []
+                    [ Html.text <| errToString err ]
                 ]
     in
     Html.div []
