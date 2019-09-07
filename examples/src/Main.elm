@@ -47,7 +47,8 @@ track a "request number" as well as the category for which the request
 was made. This lets us distinguish two requests for the same
 CategoryName. We could have used CategoryName given the simplifying
 assumption that two requests for the same CategoryName are likely to
-give the same information.
+give the same information. Alternately, if we were only ever going to
+make one request, we could use the unit type () as the tracker.
 
 The name "tracker" comes from elm/http, but in that package a
 "tracker" can only ever be a String. We extend the meaning a little
