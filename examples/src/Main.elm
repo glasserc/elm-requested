@@ -20,8 +20,10 @@ import Debug
 import Html exposing (Html, a, div, h1, input, label, li, span, text, ul)
 import Html.Attributes as Attributes
 import Html.Events as Events
+import Process
 import Random
 import Requested exposing (Requested(..))
+import Task
 
 
 {-| This simplified mailbox application only treats messages as
@@ -138,16 +140,130 @@ initial seed =
         initialCategory =
             "news"
 
-        tracker =
+        initialTracker =
             ( 0, initialCategory )
+
+        ( initialSeed, initialRequest ) =
+            makeRequest (Random.initialSeed seed) initialCategory initialTracker
     in
-    ( { mailbox = Requested.fromTracker tracker
+    ( { mailbox = Requested.fromTracker initialTracker
       , selectedCategory = initialCategory
       , requestCount = 0
-      , seed = Random.initialSeed seed
+      , seed = initialSeed
       }
-    , Cmd.none
+    , initialRequest
     )
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        ShowCategory categoryName ->
+            fetch model categoryName
+
+        GotCategory tracker categoryName response ->
+            ( { model
+                | mailbox = Requested.withResponse tracker response model.mailbox
+              }
+            , Cmd.none
+            )
+
+
+fetch : Model -> CategoryName -> ( Model, Cmd Msg )
+fetch model categoryName =
+    let
+        tracker =
+            ( model.requestCount, categoryName )
+
+        ( newSeed, cmd ) =
+            makeRequest model.seed categoryName tracker
+    in
+    ( { model
+        | requestCount = model.requestCount + 1
+        , seed = newSeed
+        , mailbox = Requested.refresh tracker model.mailbox
+      }
+    , cmd
+    )
+
+
+{-| Issue a request for a mailbox. which will resolve after a certain
+amount of time. To make things interesting, fail a certain proportion
+of the requests.
+
+Strictly speaking, this could be part of `fetch`, but we separate it
+out here 1. because it's complicated enough to stand on its own and
+
+1.  because folding it into fetch requires a more complicated
+    definition of the `initialModel`.
+
+-}
+makeRequest : Random.Seed -> CategoryName -> Tracker -> ( Random.Seed, Cmd Msg )
+makeRequest seed categoryName tracker =
+    let
+        mailboxM =
+            case categoryName of
+                "cats" ->
+                    Just cats
+
+                "elm" ->
+                    Just elm
+
+                "work" ->
+                    Just work
+
+                "news" ->
+                    Just news
+
+                _ ->
+                    Nothing
+
+        errorMsgGenerator =
+            Random.uniform "Guru meditation number"
+                [ "Segmentation fault"
+                , "No shared cipher"
+                , "NS_ERROR_FAILURE"
+                , "PC LOAD LETTER"
+                , "lp0 on fire"
+                ]
+
+        failChance =
+            0.4
+
+        failGenerator =
+            errorMsgGenerator
+                |> Random.andThen
+                    (\error ->
+                        Random.weighted ( failChance, Just error )
+                            [ ( 1 - failChance, Nothing ) ]
+                    )
+
+        delayGenerator =
+            Random.float 4 10
+
+        ( ( delay, failure ), nextSeed ) =
+            Random.step (Random.pair delayGenerator failGenerator) seed
+
+        naturalResponse =
+            case mailboxM of
+                Nothing ->
+                    Err <| NoSuchCategory categoryName
+
+                Just mailbox ->
+                    Ok mailbox
+
+        maybeFail _ =
+            case failure of
+                Just err ->
+                    Err <| HttpError err
+
+                Nothing ->
+                    naturalResponse
+
+        waitAndRespond =
+            Process.sleep (delay * 1000) |> Task.map maybeFail
+    in
+    ( nextSeed, Task.perform (GotCategory tracker categoryName) waitAndRespond )
 
 
 view : Model -> Html Msg
@@ -273,6 +389,8 @@ categoriesList current =
             in
             Html.li style
                 [ Html.a
+                    -- In a real application, we'd like, try to
+                    -- route this or something
                     [ Attributes.href <| "#" ++ name
                     , Events.onClick (ShowCategory name)
                     ]
@@ -348,16 +466,6 @@ mailboxDisplay model =
             Succeeded messages ->
                 displayMessages messages
         ]
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        ShowCategory categoryName ->
-            ( model, Cmd.none )
-
-        GotCategory tracker categoryName response ->
-            ( model, Cmd.none )
 
 
 
