@@ -106,10 +106,9 @@ errToString err =
 
 type alias Model =
     -- The data, or at least where the data goes.
-    { mailbox : Requested Tracker Error Mailbox
-
-    -- The currently selected category.
-    , selectedCategory : CategoryName
+    -- We have to display either the error or the mailbox, so keep
+    -- track of which category it was that provided them.
+    { mailbox : Requested Tracker ( CategoryName, Error ) ( CategoryName, Mailbox )
 
     -- The count of requests we've made. We use this in the tracker.
     , requestCount : Int
@@ -147,7 +146,6 @@ initial seed =
             makeRequest (Random.initialSeed seed) initialCategory initialTracker
     in
     ( { mailbox = Requested.fromTracker initialTracker
-      , selectedCategory = initialCategory
       , requestCount = 0
       , seed = initialSeed
       }
@@ -162,8 +160,16 @@ update msg model =
             fetch model categoryName
 
         GotCategory tracker categoryName response ->
+            let
+                -- Annotate the response with the category name (in
+                -- both the Ok and the Err branches).
+                annotatedResponse =
+                    response
+                        |> Result.map (\a -> ( categoryName, a ))
+                        |> Result.mapError (\e -> ( categoryName, e ))
+            in
             ( { model
-                | mailbox = Requested.withResponse tracker response model.mailbox
+                | mailbox = Requested.withResponse tracker annotatedResponse model.mailbox
               }
             , Cmd.none
             )
@@ -278,13 +284,13 @@ view model =
         , displayStatus model.mailbox
         , Html.div
             [ Attributes.style "display" "flex" ]
-            [ categoriesList model.selectedCategory
+            [ categoriesList (selectedCategory model)
             , mailboxDisplay model
             ]
         ]
 
 
-displayRequested : Requested Tracker Error Mailbox -> Html msg
+displayRequested : Requested Tracker ( CategoryName, Error ) ( CategoryName, Mailbox ) -> Html msg
 displayRequested r =
     let
         identifyMailbox mailbox =
@@ -304,17 +310,17 @@ displayRequested r =
                 Debug.todo "unknown mailbox"
     in
     case r of
-        Succeeded mailbox ->
+        Succeeded ( categoryName, mailbox ) ->
             Html.div []
                 [ Html.text "Succeeded"
                 , Html.ul []
-                    [ Html.li [] [ Html.text <| "Mailbox: <<" ++ identifyMailbox mailbox ++ ">>" ]
+                    [ Html.li [] [ Html.text <| "Mailbox (" ++ categoryName ++ "): <<" ++ identifyMailbox mailbox ++ ">>" ]
                     ]
                 ]
 
-        Failed err lastSuccess ->
+        Failed ( categoryName, err ) lastSuccess ->
             Html.div []
-                [ Html.text "Failed"
+                [ Html.text <| "Failed (" ++ categoryName ++ ")"
                 , Html.ul []
                     [ Html.li [] [ Html.text "Error: ", Html.em [] [ Html.text <| Debug.toString err ] ]
                     , Html.li []
@@ -322,8 +328,8 @@ displayRequested r =
                             Nothing ->
                                 Html.text "No previous mailbox"
 
-                            Just mailbox ->
-                                Html.text <| "Was mailbox: <<" ++ identifyMailbox mailbox ++ ">>"
+                            Just ( categoryNameSuccess, mailbox ) ->
+                                Html.text <| "Was mailbox (" ++ categoryNameSuccess ++ "): <<" ++ identifyMailbox mailbox ++ ">>"
                         ]
                     ]
                 ]
@@ -338,16 +344,16 @@ displayRequested r =
                             Nothing ->
                                 Html.text "No previous error"
 
-                            Just err ->
-                                Html.text <| "Was error: " ++ Debug.toString err
+                            Just ( categoryName, err ) ->
+                                Html.text <| "Was error (" ++ categoryName ++ "): " ++ Debug.toString err
                         ]
                     , Html.li []
                         [ case lastSuccess of
                             Nothing ->
                                 Html.text "No previous mailbox"
 
-                            Just mailbox ->
-                                Html.text <| "Was mailbox: <<" ++ identifyMailbox mailbox ++ ">>"
+                            Just ( categoryName, mailbox ) ->
+                                Html.text <| "Was mailbox (" ++ categoryName ++ "): <<" ++ identifyMailbox mailbox ++ ">>"
                         ]
                     ]
                 ]
@@ -356,7 +362,7 @@ displayRequested r =
 {-| Display a brief banner at the top of the mailbox summarizing
 what's going on.
 -}
-displayStatus : Requested Tracker Error Mailbox -> Html msg
+displayStatus : Requested Tracker ( CategoryName, Error ) e -> Html msg
 displayStatus r =
     Html.p []
         [ Html.text <|
@@ -364,10 +370,10 @@ displayStatus r =
                 Outstanding _ Nothing _ ->
                     "Loading..."
 
-                Failed err _ ->
+                Failed ( categoryName, err ) _ ->
                     "Couldn't load mailbox because: " ++ errToString err
 
-                Outstanding _ (Just err) _ ->
+                Outstanding _ (Just _) _ ->
                     "Trying again..."
 
                 Succeeded _ ->
@@ -425,11 +431,11 @@ message.
 mailboxDisplay : Model -> Html a
 mailboxDisplay model =
     let
-        displayMessages messages =
+        displayMessages ( _, messages ) =
             Html.ul [] <|
                 List.map (\message -> Html.li [] [ Html.text message ]) messages
 
-        displayErr err =
+        displayErr ( _, err ) =
             Html.p []
                 [ Html.text "There was an error fetching this mail: "
                 , Html.em []
@@ -437,7 +443,7 @@ mailboxDisplay model =
                 ]
     in
     Html.div []
-        [ Html.p [] [ Html.em [] [ Html.text <| "Messages in category " ++ model.selectedCategory ] ]
+        [ Html.p [] [ Html.em [] [ Html.text <| "Messages in category " ++ selectedCategory model ] ]
 
         -- We do a pattern match here to emphasize exhaustiveness
         -- (something *must* be displayed here) and to allow more
@@ -466,6 +472,35 @@ mailboxDisplay model =
             Succeeded messages ->
                 displayMessages messages
         ]
+
+
+{-| Utility to extract the category name that we will display as
+active right now.
+
+Try to follow the above logic (display the last success, or else the last
+failure, or else the current request).
+
+-}
+selectedCategory : Model -> String
+selectedCategory model =
+    case model.mailbox of
+        Succeeded ( categoryName, _ ) ->
+            categoryName
+
+        Failed _ (Just ( categoryName, _ )) ->
+            categoryName
+
+        Failed ( categoryName, _ ) Nothing ->
+            categoryName
+
+        Outstanding _ _ (Just ( categoryName, _ )) ->
+            categoryName
+
+        Outstanding _ (Just ( categoryName, _ )) Nothing ->
+            categoryName
+
+        Outstanding ( i, categoryName ) Nothing Nothing ->
+            categoryName
 
 
 
