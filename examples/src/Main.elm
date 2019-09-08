@@ -290,6 +290,47 @@ view model =
         ]
 
 
+{-| Formalization of the UI pattern we will use in the app.
+
+According to our UX design, this should show the messages in the last
+successfully loaded mailbox.
+
+If we have never loaded a mailbox, we should show the last
+received error message.
+
+If we have never received either a success or a failure, we are in the
+initial state and should just show a simple "loading"
+message.
+
+-}
+type DisplayState
+    = HadSuccess ( CategoryName, Mailbox )
+    | HadFailure ( CategoryName, Error )
+    | StillLoading Tracker
+
+
+requestedToDisplayState : Requested Tracker ( CategoryName, Error ) ( CategoryName, Mailbox ) -> DisplayState
+requestedToDisplayState r =
+    case r of
+        Succeeded s ->
+            HadSuccess s
+
+        Failed _ (Just lastSuccess) ->
+            HadSuccess lastSuccess
+
+        Failed f Nothing ->
+            HadFailure f
+
+        Outstanding _ _ (Just lastSuccess) ->
+            HadSuccess lastSuccess
+
+        Outstanding _ (Just lastFailure) Nothing ->
+            HadFailure lastFailure
+
+        Outstanding t Nothing Nothing ->
+            StillLoading t
+
+
 displayRequested : Requested Tracker ( CategoryName, Error ) ( CategoryName, Mailbox ) -> Html msg
 displayRequested r =
     let
@@ -416,17 +457,6 @@ categoriesList current =
 
 
 {-| Display the "mailbox" panel on the right side.
-
-According to our UX design, this should show the messages in the last
-successfully loaded mailbox.
-
-If we have never loaded a mailbox, we should show the last
-received error message.
-
-If we have never received either a success or a failer, we are in the
-initial state and should just show a simple "loading"
-message.
-
 -}
 mailboxDisplay : Model -> Html a
 mailboxDisplay model =
@@ -446,10 +476,10 @@ mailboxDisplay model =
         [ Html.p [] [ Html.em [] [ Html.text <| "Messages in category " ++ selectedCategory model ] ]
 
         -- We do a pattern match here to emphasize exhaustiveness
-        -- (something *must* be displayed here) and to allow more
-        -- flexibility (display onionskin, but only over previous
-        -- results), but you might instead to prefer to express this
-        -- using `getData` and `getError`.
+        -- (something *must* be displayed here) and for pedagogical
+        -- reasons, but you might instead to prefer to express this
+        -- using `requestedToDisplayState` or even using `getData` and
+        -- `getError`.
         , case model.mailbox of
             Outstanding _ _ (Just messages) ->
                 -- We might also overlay a loading state here.
@@ -483,23 +513,14 @@ failure, or else the current request).
 -}
 selectedCategory : Model -> String
 selectedCategory model =
-    case model.mailbox of
-        Succeeded ( categoryName, _ ) ->
+    case requestedToDisplayState model.mailbox of
+        HadSuccess ( categoryName, _ ) ->
             categoryName
 
-        Failed _ (Just ( categoryName, _ )) ->
+        HadFailure ( categoryName, _ ) ->
             categoryName
 
-        Failed ( categoryName, _ ) Nothing ->
-            categoryName
-
-        Outstanding _ _ (Just ( categoryName, _ )) ->
-            categoryName
-
-        Outstanding _ (Just ( categoryName, _ )) Nothing ->
-            categoryName
-
-        Outstanding ( i, categoryName ) Nothing Nothing ->
+        StillLoading ( _, categoryName ) ->
             categoryName
 
 
