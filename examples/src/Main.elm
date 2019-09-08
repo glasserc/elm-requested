@@ -453,6 +453,7 @@ categoriesList current =
         , category "elm"
         , category "work"
         , category "news"
+        , category "invalid-category"
         ]
 
 
