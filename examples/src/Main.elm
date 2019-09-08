@@ -479,8 +479,8 @@ mailboxDisplay model =
         -- We do a pattern match here to emphasize exhaustiveness
         -- (something *must* be displayed here) and for pedagogical
         -- reasons, but you might instead to prefer to express this
-        -- using `requestedToDisplayState` or even using `getData` and
-        -- `getError`.
+        -- using `requestedToDisplayState` or even using `getSuccess` and
+        -- `getFailure`.
         , case model.mailbox of
             Outstanding _ _ (Just messages) ->
                 -- We might also overlay a loading state here.

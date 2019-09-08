@@ -4,6 +4,7 @@ module Requested exposing
     , isOutstanding
     , withResponse
     , refresh
+    , getSuccess, getFailure
     , fromResult
     )
 
@@ -21,6 +22,7 @@ type itself and the functions you probably need to use it.
 @docs isOutstanding
 @docs withResponse
 @docs refresh
+@docs getSuccess, getFailure
 @docs fromResult
 
 -}
@@ -165,3 +167,39 @@ refresh t r =
 
         Outstanding _ lastFail lastSuccess ->
             Outstanding t lastFail lastSuccess
+
+
+{-| Get the previous success from the Requested, if any.
+
+This is a utility function which may be useful in writing views.
+
+-}
+getSuccess : Requested t e a -> Maybe a
+getSuccess r =
+    case r of
+        Succeeded s ->
+            Just s
+
+        Failed _ lastSuccess ->
+            lastSuccess
+
+        Outstanding _ _ lastSuccess ->
+            lastSuccess
+
+
+{-| Get the previous failure from the Requested, if any.
+
+This is a utility function which may be useful in writing views.
+
+-}
+getFailure : Requested t e a -> Maybe e
+getFailure r =
+    case r of
+        Succeeded _ ->
+            Nothing
+
+        Failed f _ ->
+            Just f
+
+        Outstanding _ lastFailed _ ->
+            lastFailed
