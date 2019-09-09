@@ -50,14 +50,14 @@ fromTracker t =
     Just <| BaseR.fromTracker t
 
 
-fromSuccess : a -> Requested t e a
-fromSuccess a =
-    Just <| BaseR.fromSuccess a
+fromSuccess : t -> a -> Requested t e a
+fromSuccess t a =
+    Just <| BaseR.fromSuccess t a
 
 
-fromFailure : e -> Requested t e a
-fromFailure e =
-    Just <| BaseR.fromFailure e
+fromFailure : t -> e -> Requested t e a
+fromFailure t e =
+    Just <| BaseR.fromFailure t e
 
 
 isOutstanding : Requested t e a -> Bool
@@ -70,14 +70,14 @@ isOutstanding reqM =
             BaseR.isOutstanding req
 
 
-withResponse : t -> Result e a -> Requested t e a -> Requested t e a
-withResponse t resp requestedMaybe =
+withResponse : (t -> t -> Order) -> t -> Result e a -> Requested t e a -> Requested t e a
+withResponse compare t resp requestedMaybe =
     case requestedMaybe of
         Nothing ->
             Nothing
 
         Just requested ->
-            Just (BaseR.withResponse t resp requested)
+            Just (BaseR.withResponse compare t resp requested)
 
 
 refresh : t -> Requested t e a -> Requested t e a
@@ -90,16 +90,16 @@ refresh t requestedMaybe =
             Just (BaseR.refresh t requested)
 
 
-getSuccess : Requested t e a -> Maybe a
+getSuccess : Requested t e a -> Maybe ( t, a )
 getSuccess =
     Maybe.andThen BaseR.getSuccess
 
 
-getFailure : Requested t e a -> Maybe e
+getFailure : Requested t e a -> Maybe ( t, e )
 getFailure =
     Maybe.andThen BaseR.getFailure
 
 
-fromResult : Result e a -> Requested t e a
-fromResult r =
-    Just (BaseR.fromResult r)
+fromResult : t -> Result e a -> Requested t e a
+fromResult t r =
+    Just (BaseR.fromResult t r)

@@ -62,6 +62,27 @@ type alias Tracker =
     ( Int, CategoryName )
 
 
+{-| Comparison function to impose an order on Trackers.
+
+We never reuse an ID so that's sufficient to order things.
+
+-}
+compareTracker : Tracker -> Tracker -> Order
+compareTracker ( id1, _ ) ( id2, _ ) =
+    compare id1 id2
+
+
+{-| We chose to use the category name in our tracker first because of
+the pedagogical reason that it helps the reader identify what request
+is what, but also because it's helpful when we later have a response
+to know what the response was for. Define this helper function to let
+us get the CategoryName back out of the Tracker.
+-}
+trackerCategoryName : Tracker -> CategoryName
+trackerCategoryName ( id, categoryName ) =
+    categoryName
+
+
 {-| The type of the "errors" we could get when trying to make a
 request.
 
@@ -108,7 +129,7 @@ type alias Model =
     -- The data, or at least where the data goes.
     -- We have to display either the error or the mailbox, so keep
     -- track of which category it was that provided them.
-    { mailbox : Requested Tracker ( CategoryName, Error ) ( CategoryName, Mailbox )
+    { mailbox : Requested Tracker Error Mailbox
 
     -- The count of requests we've made. We use this in the tracker.
     , requestCount : Int
@@ -146,7 +167,7 @@ initial seed =
             makeRequest (Random.initialSeed seed) initialCategory initialTracker
     in
     ( { mailbox = Requested.fromTracker initialTracker
-      , requestCount = 0
+      , requestCount = 1
       , seed = initialSeed
       }
     , initialRequest
@@ -160,16 +181,8 @@ update msg model =
             fetch model categoryName
 
         GotCategory tracker categoryName response ->
-            let
-                -- Annotate the response with the category name (in
-                -- both the Ok and the Err branches).
-                annotatedResponse =
-                    response
-                        |> Result.map (\a -> ( categoryName, a ))
-                        |> Result.mapError (\e -> ( categoryName, e ))
-            in
             ( { model
-                | mailbox = Requested.withResponse tracker annotatedResponse model.mailbox
+                | mailbox = Requested.withResponse compareTracker tracker response model.mailbox
               }
             , Cmd.none
             )
@@ -309,29 +322,29 @@ type DisplayState
     | StillLoading Tracker
 
 
-requestedToDisplayState : Requested Tracker ( CategoryName, Error ) ( CategoryName, Mailbox ) -> DisplayState
+requestedToDisplayState : Requested Tracker Error Mailbox -> DisplayState
 requestedToDisplayState r =
     case r of
-        Succeeded s ->
-            HadSuccess s
+        Succeeded ( t, s ) ->
+            HadSuccess ( trackerCategoryName t, s )
 
-        Failed _ (Just lastSuccess) ->
-            HadSuccess lastSuccess
+        Failed _ (Just ( t, lastSuccess )) ->
+            HadSuccess ( trackerCategoryName t, lastSuccess )
 
-        Failed f Nothing ->
-            HadFailure f
+        Failed ( t, f ) Nothing ->
+            HadFailure ( trackerCategoryName t, f )
 
-        Outstanding _ _ (Just lastSuccess) ->
-            HadSuccess lastSuccess
+        Outstanding _ _ (Just ( t, lastSuccess )) ->
+            HadSuccess ( trackerCategoryName t, lastSuccess )
 
-        Outstanding _ (Just lastFailure) Nothing ->
-            HadFailure lastFailure
+        Outstanding _ (Just ( t, lastFailure )) Nothing ->
+            HadFailure ( trackerCategoryName t, lastFailure )
 
         Outstanding t Nothing Nothing ->
             StillLoading t
 
 
-displayRequested : Requested Tracker ( CategoryName, Error ) ( CategoryName, Mailbox ) -> Html msg
+displayRequested : Requested Tracker Error Mailbox -> Html msg
 displayRequested r =
     let
         identifyMailbox mailbox =
@@ -351,17 +364,17 @@ displayRequested r =
                 Debug.todo "unknown mailbox"
     in
     case r of
-        Succeeded ( categoryName, mailbox ) ->
+        Succeeded ( t, mailbox ) ->
             Html.div []
                 [ Html.text "Succeeded"
                 , Html.ul []
-                    [ Html.li [] [ Html.text <| "Mailbox (" ++ categoryName ++ "): <<" ++ identifyMailbox mailbox ++ ">>" ]
+                    [ Html.li [] [ Html.text <| "Mailbox (" ++ trackerCategoryName t ++ "): <<" ++ identifyMailbox mailbox ++ ">>" ]
                     ]
                 ]
 
-        Failed ( categoryName, err ) lastSuccess ->
+        Failed ( t, err ) lastSuccess ->
             Html.div []
-                [ Html.text <| "Failed (" ++ categoryName ++ ")"
+                [ Html.text <| "Failed (" ++ trackerCategoryName t ++ ")"
                 , Html.ul []
                     [ Html.li [] [ Html.text "Error: ", Html.em [] [ Html.text <| Debug.toString err ] ]
                     , Html.li []
@@ -369,8 +382,8 @@ displayRequested r =
                             Nothing ->
                                 Html.text "No previous mailbox"
 
-                            Just ( categoryNameSuccess, mailbox ) ->
-                                Html.text <| "Was mailbox (" ++ categoryNameSuccess ++ "): <<" ++ identifyMailbox mailbox ++ ">>"
+                            Just ( lastSuccessT, mailbox ) ->
+                                Html.text <| "Was mailbox (" ++ trackerCategoryName lastSuccessT ++ "): <<" ++ identifyMailbox mailbox ++ ">>"
                         ]
                     ]
                 ]
@@ -385,16 +398,16 @@ displayRequested r =
                             Nothing ->
                                 Html.text "No previous error"
 
-                            Just ( categoryName, err ) ->
-                                Html.text <| "Was error (" ++ categoryName ++ "): " ++ Debug.toString err
+                            Just ( t, err ) ->
+                                Html.text <| "Was error (" ++ trackerCategoryName t ++ "): " ++ Debug.toString err
                         ]
                     , Html.li []
                         [ case lastSuccess of
                             Nothing ->
                                 Html.text "No previous mailbox"
 
-                            Just ( categoryName, mailbox ) ->
-                                Html.text <| "Was mailbox (" ++ categoryName ++ "): <<" ++ identifyMailbox mailbox ++ ">>"
+                            Just ( t, mailbox ) ->
+                                Html.text <| "Was mailbox (" ++ trackerCategoryName t ++ "): <<" ++ identifyMailbox mailbox ++ ">>"
                         ]
                     ]
                 ]
@@ -403,7 +416,7 @@ displayRequested r =
 {-| Display a brief banner at the top of the mailbox summarizing
 what's going on.
 -}
-displayStatus : Requested Tracker ( CategoryName, Error ) e -> Html msg
+displayStatus : Requested Tracker Error a -> Html msg
 displayStatus r =
     Html.p []
         [ Html.text <|
@@ -411,7 +424,7 @@ displayStatus r =
                 Outstanding _ Nothing _ ->
                     "Loading..."
 
-                Failed ( categoryName, err ) _ ->
+                Failed ( t, err ) _ ->
                     "Couldn't load mailbox because: " ++ errToString err
 
                 Outstanding _ (Just _) _ ->
