@@ -126,6 +126,12 @@ fromResult t r =
             fromSuccess t a
 
 
+{-| Check if a Requested is waiting for a request to complete.
+
+This might be useful when choosing to display a "Loading..." state in
+your view.
+
+-}
 isOutstanding : Requested t e a -> Bool
 isOutstanding r =
     case r of

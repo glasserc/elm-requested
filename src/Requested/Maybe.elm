@@ -34,6 +34,8 @@ in Requested, which see.
 import Requested as BaseR
 
 
+{-| An alias for a Maybe Requested.
+-}
 type alias Requested t e a =
     Maybe (BaseR.Requested t e a)
 
@@ -45,21 +47,29 @@ notRequested =
     Nothing
 
 
+{-| Like Requested.fromTracker, but for a Maybe Requested.
+-}
 fromTracker : t -> Requested t e a
 fromTracker t =
     Just <| BaseR.fromTracker t
 
 
+{-| Like Requested.fromSuccess, but for a Maybe Requested.
+-}
 fromSuccess : t -> a -> Requested t e a
 fromSuccess t a =
     Just <| BaseR.fromSuccess t a
 
 
+{-| Like Requested.fromFailure, but for a Maybe Requested.
+-}
 fromFailure : t -> e -> Requested t e a
 fromFailure t e =
     Just <| BaseR.fromFailure t e
 
 
+{-| Like Requested.isOutstanding, but for a Maybe Requested.
+-}
 isOutstanding : Requested t e a -> Bool
 isOutstanding reqM =
     case reqM of
@@ -70,6 +80,8 @@ isOutstanding reqM =
             BaseR.isOutstanding req
 
 
+{-| Like Requested.withResponse, but for a Maybe Requested.
+-}
 withResponse : (t -> t -> Order) -> t -> Result e a -> Requested t e a -> Requested t e a
 withResponse compare t resp requestedMaybe =
     case requestedMaybe of
@@ -80,6 +92,8 @@ withResponse compare t resp requestedMaybe =
             Just (BaseR.withResponse compare t resp requested)
 
 
+{-| Like Requested.refresh, but for a Maybe Requested.
+-}
 refresh : t -> Requested t e a -> Requested t e a
 refresh t requestedMaybe =
     case requestedMaybe of
@@ -90,16 +104,22 @@ refresh t requestedMaybe =
             Just (BaseR.refresh t requested)
 
 
+{-| Like Requested.getSuccess, but for a Maybe Requested.
+-}
 getSuccess : Requested t e a -> Maybe ( t, a )
 getSuccess =
     Maybe.andThen BaseR.getSuccess
 
 
+{-| Like Requested.getFailure, but for a Maybe Requested.
+-}
 getFailure : Requested t e a -> Maybe ( t, e )
 getFailure =
     Maybe.andThen BaseR.getFailure
 
 
+{-| Like Requested.fromResult, but for a Maybe Requested.
+-}
 fromResult : t -> Result e a -> Requested t e a
 fromResult t r =
     Just (BaseR.fromResult t r)
