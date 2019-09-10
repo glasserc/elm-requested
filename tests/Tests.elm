@@ -1,4 +1,4 @@
-module Tests exposing (withResponseTests)
+module Tests exposing (commutativityTests, withResponseTests)
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
@@ -134,6 +134,30 @@ withResponseTests =
                         |> Requested.withResponse compare 10 (Err ())
                         |> Expect.equal (Failed ( 10, () ) (Just ( 6, () )))
             ]
+        ]
+
+
+commutativityTests : Test
+commutativityTests =
+    let
+        event =
+            Fuzz.tuple ( int, result int int )
+    in
+    describe "commutativity"
+        [ fuzz3 (requestedFuzzer int int int) event event "two responses can commute" <|
+            \requested ( t1, result1 ) ( t2, result2 ) ->
+                let
+                    output1 =
+                        requested
+                            |> Requested.withResponse compare t1 result1
+                            |> Requested.withResponse compare t2 result2
+
+                    output2 =
+                        requested
+                            |> Requested.withResponse compare t2 result2
+                            |> Requested.withResponse compare t1 result1
+                in
+                Expect.equal output2 output1
         ]
 
 
