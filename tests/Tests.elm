@@ -1,4 +1,8 @@
-module Tests exposing (commutativityTests, withResponseTests)
+module Tests exposing
+    ( commutativityTests
+    , refreshTests
+    , withResponseTests
+    )
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
@@ -158,6 +162,66 @@ commutativityTests =
                             |> Requested.withResponse compare t1 result1
                 in
                 Expect.equal output2 output1
+        ]
+
+
+refreshTests : Test
+refreshTests =
+    let
+        outstandingBare =
+            Outstanding 10 Nothing Nothing
+
+        outstandingSuccess =
+            Outstanding 10 Nothing (Just ( 8, () ))
+
+        outstandingFailure =
+            Outstanding 10 (Just ( 8, () )) Nothing
+
+        outstandingBoth =
+            Outstanding 10 (Just ( 8, () )) (Just ( 9, () ))
+    in
+    describe "Requested.refresh"
+        [ test "Succeeded becomes Outstanding" <|
+            \_ ->
+                Succeeded ( 1, () )
+                    |> Requested.refresh 2
+                    |> Expect.equal (Outstanding 2 Nothing (Just ( 1, () )))
+        , test "Failed (with no previous success) becomes Outstanding" <|
+            \_ ->
+                Failed ( 1, () ) Nothing
+                    |> Requested.refresh 2
+                    |> Expect.equal (Outstanding 2 (Just ( 1, () )) Nothing)
+        , test "Failed keeps previous success" <|
+            \_ ->
+                Failed ( 1, () ) (Just ( 2, () ))
+                    |> Requested.refresh 3
+                    |> Expect.equal (Outstanding 3 (Just ( 1, () )) (Just ( 2, () )))
+        , test "Bare Outstanding remains bare" <|
+            \_ ->
+                outstandingBare
+                    |> Requested.refresh 11
+                    |> Expect.equal (Outstanding 11 Nothing Nothing)
+        , test "Previous success in Outstanding is preserved" <|
+            \_ ->
+                outstandingSuccess
+                    |> Requested.refresh 11
+                    |> Expect.equal (Outstanding 11 Nothing (Just ( 8, () )))
+        , test "Previous failure in Outstanding is preserved" <|
+            \_ ->
+                outstandingFailure
+                    |> Requested.refresh 11
+                    |> Expect.equal (Outstanding 11 (Just ( 8, () )) Nothing)
+        , test "Outstanding preserves both" <|
+            \_ ->
+                outstandingBoth
+                    |> Requested.refresh 11
+                    |> Expect.equal (Outstanding 11 (Just ( 8, () )) (Just ( 9, () )))
+        , fuzz2 (requestedFuzzer int int int) int "refreshing is idempotent" <|
+            \initial t ->
+                initial
+                    |> Requested.refresh t
+                    |> Requested.refresh t
+                    |> Expect.equal (Requested.refresh t initial)
         ]
 
 
