@@ -162,6 +162,25 @@ commutativityTests =
                             |> Requested.withResponse compare t1 result1
                 in
                 Expect.equal output2 output1
+        , fuzz2 (requestedFuzzer int int int) event "refresh can commute with past response on Outstanding" <|
+            \requested ( t, result ) ->
+                let
+                    output1 =
+                        requested
+                            -- Discard previous t, i.e. pick t as
+                            -- "now", so we can ensure a withResponse
+                            -- in the past
+                            |> Requested.refresh t
+                            |> Requested.withResponse compare (t - 1) result
+                            |> Requested.refresh (t + 1)
+
+                    output2 =
+                        requested
+                            |> Requested.refresh t
+                            |> Requested.refresh (t + 1)
+                            |> Requested.withResponse compare (t - 1) result
+                in
+                Expect.equal output2 output1
         ]
 
 
