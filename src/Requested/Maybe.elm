@@ -2,6 +2,7 @@ module Requested.Maybe exposing
     ( notRequested
     , Requested
     , fromTracker, fromSuccess, fromFailure
+    , mapSuccess, mapFailure, mapTracker
     , isOutstanding
     , withResponse
     , refresh
@@ -23,6 +24,7 @@ in Requested, which see.
 @docs notRequested
 @docs Requested
 @docs fromTracker, fromSuccess, fromFailure
+@docs mapSuccess, mapFailure, mapTracker
 @docs isOutstanding
 @docs withResponse
 @docs refresh
@@ -123,3 +125,24 @@ getFailure =
 fromResult : t -> Result e a -> Requested t e a
 fromResult t r =
     Just (BaseR.fromResult t r)
+
+
+{-| Like Requested.mapSuccess, but for a Maybe Requested.
+-}
+mapSuccess : (a1 -> a2) -> Requested t e a1 -> Requested t e a2
+mapSuccess f =
+    Maybe.map (BaseR.mapSuccess f)
+
+
+{-| Like Requested.mapFailure, but for a Maybe Requested.
+-}
+mapFailure : (e1 -> e2) -> Requested t e1 a -> Requested t e2 a
+mapFailure f =
+    Maybe.map (BaseR.mapFailure f)
+
+
+{-| Like Requested.mapTracker, but for a Maybe Requested.
+-}
+mapTracker : (t1 -> t2) -> Requested t1 e a -> Requested t2 e a
+mapTracker f =
+    Maybe.map (BaseR.mapTracker f)

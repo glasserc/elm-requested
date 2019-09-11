@@ -1,6 +1,7 @@
 module Requested exposing
     ( Requested(..)
     , fromTracker, fromSuccess, fromFailure
+    , mapSuccess, mapFailure, mapTracker
     , isOutstanding
     , withResponse
     , refresh
@@ -19,6 +20,7 @@ type itself and the functions you probably need to use it.
 
 @docs Requested
 @docs fromTracker, fromSuccess, fromFailure
+@docs mapSuccess, mapFailure, mapTracker
 @docs isOutstanding
 @docs withResponse
 @docs refresh
@@ -283,3 +285,64 @@ getFailure r =
 
         Outstanding _ lastFailed _ ->
             lastFailed
+
+
+{-| Helper utility to lift a function into dealing with a paired
+tracker.
+-}
+liftTracker : (a -> b) -> ( t, a ) -> ( t, b )
+liftTracker f ( t, a ) =
+    ( t, f a )
+
+
+{-| Transform the success values in the Requested, if any.
+-}
+mapSuccess : (a1 -> a2) -> Requested t e a1 -> Requested t e a2
+mapSuccess f r =
+    let
+        fOfMaybe =
+            Maybe.map (liftTracker f)
+    in
+    case r of
+        Succeeded s ->
+            Succeeded (liftTracker f s)
+
+        Failed e maybeA ->
+            Failed e (fOfMaybe maybeA)
+
+        Outstanding t maybeE maybeA ->
+            Outstanding t maybeE (fOfMaybe maybeA)
+
+
+{-| Transform the failure values in the Requested, if any.
+-}
+mapFailure : (e1 -> e2) -> Requested t e1 a -> Requested t e2 a
+mapFailure f r =
+    case r of
+        Succeeded s ->
+            Succeeded s
+
+        Failed e maybeA ->
+            Failed (liftTracker f e) maybeA
+
+        Outstanding t maybeE maybeA ->
+            Outstanding t (Maybe.map (liftTracker f) maybeE) maybeA
+
+
+{-| Transform the trackers in the Requested.
+-}
+mapTracker : (t1 -> t2) -> Requested t1 e a -> Requested t2 e a
+mapTracker f r =
+    let
+        onTracker ( t, x ) =
+            ( f t, x )
+    in
+    case r of
+        Succeeded s ->
+            Succeeded (onTracker s)
+
+        Failed e maybeA ->
+            Failed (onTracker e) (Maybe.map onTracker maybeA)
+
+        Outstanding t maybeE maybeA ->
+            Outstanding (f t) (Maybe.map onTracker maybeE) (Maybe.map onTracker maybeA)
